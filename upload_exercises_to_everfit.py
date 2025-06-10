@@ -1,6 +1,8 @@
 import pandas as pd
 import requests
 import getpass
+import re
+from itertools import zip_longest
 
 from everfit_api import login, post_exercise, get_exercises, put_exercise, get_payload, get_exercises_list
 
@@ -41,13 +43,15 @@ def upload_exercises_to_everfit():
         instruction_parts = [part.strip() for part in raw_instructions.split(";") if part.strip()]
         raw_spanish_instructions = row.get("Spanish Instructions", "")
         spanish_instruction_parts = [part.strip() for part in raw_spanish_instructions.split(";") if part.strip()]
-        instructions = []  # English and Spanish instructions combined
-        max_len = max(len(instruction_parts), len(spanish_instruction_parts))
-        for i in range(max_len):
-            if i < len(instruction_parts):
-                instructions.append(instruction_parts[i])
-            if i < len(spanish_instruction_parts):
-                instructions.append(spanish_instruction_parts[i])
+        # Strip numbering
+        instruction_parts = [re.sub(r'^\d+\.\s*', '', s) for s in instruction_parts]
+        spanish_instruction_parts = [re.sub(r'^\d+\.\s*', '', s) for s in spanish_instruction_parts]
+        # Pair each English with Spanish counterpart
+        instructions = []
+        for eng, spa in zip_longest(instruction_parts, spanish_instruction_parts, fillvalue=""):
+            pair = " | ".join(p for p in (eng, spa) if p)
+            instructions.append(pair)
+        # Separate by newline
         instructions_mixed = "\n".join(instructions)
 
         raw_movement_patterns = row.get("Movement Patterns", "")
