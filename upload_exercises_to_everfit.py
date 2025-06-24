@@ -35,14 +35,30 @@ def upload_exercises_to_everfit():
     
     # Get exercise information from Excel
     for idx, row in df.iterrows():
-        if int(row.get("Everfit Uploaded", 1)) == 1:
+        # Handle NaN values in "Everfit Uploaded" column
+        everfit_uploaded = row.get("Everfit Uploaded", 0)
+        if pd.isna(everfit_uploaded):
+            everfit_uploaded = 0
+        elif everfit_uploaded == 1:
             continue
-        print(f"Processing exercise: {row['Name']}")
+        
+        # Skip rows with NaN exercise names
+        exercise_name = row.get("Name", "")
+        if pd.isna(exercise_name) or exercise_name == "":
+            continue
+            
+        print(f"Processing exercise: {exercise_name}")
+
+        # Helper function to safely handle string operations on potentially NaN values
+        def safe_string_split(value, delimiter=";"):
+            if pd.isna(value) or value == "":
+                return []
+            return [part.strip() for part in str(value).split(delimiter) if part.strip()]
 
         raw_instructions = row.get("Instructions", "")
-        instruction_parts = [part.strip() for part in raw_instructions.split(";") if part.strip()]
+        instruction_parts = safe_string_split(raw_instructions)
         raw_spanish_instructions = row.get("Spanish Instructions", "")
-        spanish_instruction_parts = [part.strip() for part in raw_spanish_instructions.split(";") if part.strip()]
+        spanish_instruction_parts = safe_string_split(raw_spanish_instructions)
         # Strip numbering
         instruction_parts = [re.sub(r'^\d+\.\s*', '', s) for s in instruction_parts]
         spanish_instruction_parts = [re.sub(r'^\d+\.\s*', '', s) for s in spanish_instruction_parts]
@@ -54,27 +70,20 @@ def upload_exercises_to_everfit():
         # Separate by newline
         instructions_mixed = "\n".join(instructions)
 
-        raw_movement_patterns = row.get("Movement Patterns", "")
-        movement_patterns = [pattern.strip() for pattern in raw_movement_patterns.split(";") if pattern.strip()]
-
-        raw_muscle_groups = row.get("Muscle Group", "")
-        muscle_groups = [group.strip() for group in raw_muscle_groups.split(";") if group.strip()]
-
-        raw_tracking_fields = row.get("Tracking Fields", "")
-        tracking_fields = [field.strip() for field in raw_tracking_fields.split(";") if field.strip()]
-
-        raw_tags = row.get("Exercise Tags", "")
-        tags = [tag.strip() for tag in raw_tags.split(";") if tag.strip()]
+        movement_patterns = safe_string_split(row.get("Movement Patterns", ""))
+        muscle_groups = safe_string_split(row.get("Muscle Group", ""))
+        tracking_fields = safe_string_split(row.get("Tracking Fields", ""))
+        tags = safe_string_split(row.get("Exercise Tags", ""))
 
         exercise_info_dict = {
             # (required) Title of the exercise
-            "exercise_name": row["Name"],  # str
+            "exercise_name": exercise_name,  # str
 
-            # (optional) Multi‐line instructions (each “\n” becomes a separate list element)
+            # (optional) Multi‐line instructions (each "n" becomes a separate list element)
             # Either:
-            #   • a single string with newline separators, e.g. "Line 1\nLine 2", or
+            #   • a single string with newline separators, e.g. "Line 1nLine 2", or
             #   • None/NaN if you want payload["instructions"] == []
-            "instructions": instructions_mixed,  # str (possibly containing "\n") or pandas.NaN
+            "instructions": instructions_mixed,  # str (possibly containing "n") or pandas.NaN
 
             # (optional) Which modality this exercise falls under.
             # Must match one of the keys in MODALITY_MAP (e.g. "bodyweight", "dumbbell", etc.), or ""/NaN to leave default.
@@ -94,7 +103,7 @@ def upload_exercises_to_everfit():
 
             # (optional) Any tracking fields you want (comma‐separated string).
             # Example: "Reps,Weight,Duration". Each token is looked up in TRACKING_FIELDS_MAP.
-            # If blank/NaN, it will simply add the default “Rest” field.
+            # If blank/NaN, it will simply add the default "Rest" field.
             "tracking_fields": tracking_fields,  # str or pandas.NaN
 
             # (optional) A URL for a demo video. If blank/NaN, payload["videoLink"] becomes "".
